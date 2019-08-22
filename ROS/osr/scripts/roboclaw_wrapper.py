@@ -4,6 +4,7 @@ import time
 import serial
 import math
 import rospy
+import RPi.GPIO as GPIO
 
 class MotorControllers(object):
 
@@ -18,42 +19,52 @@ class MotorControllers(object):
 
 	'''
 	def __init__(self):
-		## MAKE SURE TO FIX CONFIG.JSON WHEN PORTED TO THE ROVER!
-		#self.rc = Roboclaw( config['CONTROLLER_CONFIG']['device'],
-		#					config['CONTROLLER_CONFIG']['baud_rate']
-		#					)
 		rospy.loginfo( "Initializing motor controllers")
-		#self.rc = Roboclaw( rospy.get_param('motor_controller_device', "/dev/serial0"),
-		#					rospy.get_param('baud_rate', 115200))
-		self.rc = Roboclaw("/dev/ttyAMA0",115200)
-		self.rc.Open()
-		self.accel           = [0]    * 10
-		self.qpps            = [None] * 10
-		self.err             = [None] * 5
-		address_raw = rospy.get_param('motor_controller_addresses')
+		self.rc = Roboclaw( rospy.get_param('motor_controller_device', "/dev/serial0"),
+							rospy.get_param('baud_rate', 115200))
+		address_raw = rospy.get_param('motor_controller_addresses',"128,129,130,131,132")
+		
+		self.estop_pin        = 23
+		self.accel            = [0]    * 10
+		self.qpps             = [None] * 10
+		self.err              = [None] * 5
+		self.drive_zero_flag  = [0] * 6
+		self.corner_zero_flag = [0] * 4
 		address_list = (address_raw.split(','))
 		self.address = [None]*len(address_list)
+		
+		GPIO.setmode(GPIO.BCM)
+		GPIO.setup(self.estop_pin,GPIO.OUT)
+		self.set_estop_line(False)
+		self.rc.Open()
+		
 		for i in range(len(address_list)):
 			self.address[i] = int(address_list[i])
 
-		version = 1
-		for address in self.address:
-			print ("Attempting to talk to motor controller",address)
-			version = version & self.rc.ReadVersion(address)[0]
-			print version
-		if version != 0:
+		version = [0] * 5
+		comm_error =""
+		for i in range(len(self.address)):
+			print ("Attempting to talk to motor controller",self.address[i])
+			version[i] = self.rc.ReadVersion(self.address[i])[0]
+			if version[i] == 0:
+				comm_error += " " + str(self.address[i])
+		if (version != [0] * 5):
 			print "[Motor__init__] Sucessfully connected to RoboClaw motor controllers"
 		else:
-			raise Exception("Unable to establish connection to Roboclaw motor controllers")
+			self.cleanup()
+			raise Exception("Unable to establish connection to Roboclaw motor controllers" + comm_error)
+
+
 		self.killMotors()
 		self.enc_min =[]
 		self.enc_max =[]
+		
 		for address in self.address:
 			#self.rc.SetMainVoltages(address, rospy.get_param('battery_low', 11)*10), rospy.get_param('battery_high', 18)*10))
 
 			if address == 131 or address == 132:
-				#self.rc.SetM1MaxCurrent(address, int(config['MOTOR_CONFIG']['max_corner_current']*100))
-				#self.rc.SetM2MaxCurrent(address, int(config['MOTOR_CONFIG']['max_corner_current']*100))
+				while(self.rc.ReadM1PositionPID(address)[-1] == 0 or self.rc.ReadM2PositionPID(address)[-1] == 0):
+					time.sleep(1)
 
 				self.enc_min.append(self.rc.ReadM1PositionPID(address)[-2])
 				self.enc_min.append(self.rc.ReadM2PositionPID(address)[-2])
@@ -68,7 +79,7 @@ class MotorControllers(object):
 
 		rospy.set_param('enc_min', str(self.enc_min)[1:-1])
 		rospy.set_param('enc_max', str(self.enc_max)[1:-1])
-
+		
 		for address in self.address:
 			self.rc.WriteNVM(address)
 
@@ -98,9 +109,11 @@ class MotorControllers(object):
 		self.enc = [None]*4
 		for i in range(4):
 			mids[i] = (self.enc_max[i] + self.enc_min[i])/2
-		#self.cornerToPosition(mids)
+		self.cornerToPosition(mids)
+		rospy.set_param("controller_init", 1)
 		time.sleep(2)
 		self.killMotors()
+		
 
 	def cornerToPosition(self,tick):
 		'''
@@ -115,13 +128,18 @@ class MotorControllers(object):
 			index = int(math.ceil((i+1)/2.0)+2)
 
 			if tick[i] != -1:
-				if (i % 2):  self.rc.SpeedAccelDeccelPositionM2(self.address[index],accel,speed,accel,tick[i],1)
-				else:        self.rc.SpeedAccelDeccelPositionM1(self.address[index],accel,speed,accel,tick[i],1)				
-			else:
-				if not (i % 2): self.rc.ForwardM1(self.address[index],0)
-				else:           self.rc.ForwardM2(self.address[index],0)
-
-
+				#print "Sending setpoint: ", tick[i]
+				#rospy.loginfo(tick[i])
+				self.corner_zero_flag[i] = 0
+				if (i % 2):  x = self.rc.SpeedAccelDeccelPositionM2(self.address[index],accel,speed,accel,tick[i],1)
+				else:        x = self.rc.SpeedAccelDeccelPositionM1(self.address[index],accel,speed,accel,tick[i],1)				
+			elif self.corner_zero_flag[i] != 1:
+				#print "Stopping corner motor: ", i
+				self.corner_zero_flag[i] = 1
+				if not (i % 2): x = self.rc.ForwardM1(self.address[index],0)
+				else:           x = self.rc.ForwardM2(self.address[index],0)
+			#else:
+				#print "No command sent"
 
 	def sendMotorDuty(self, motorID, speed):
 		'''
@@ -170,7 +188,52 @@ class MotorControllers(object):
 		self.enc = enc
 		return enc
 
-
+	def temp(self,speed):
+		for i in range(len(speed)):
+			if i > 0:
+				return
+			
+			addr = self.address[int(i/2)]
+			
+			if speed[i] >0: accel = self.accel_pos
+			else: accel = self.accel_neg
+			
+			if(speed[i] == 0 and self.drive_zero_flag[i] == 0):
+				self.drive_zero_flag[i] = 1
+				if not i % 2:
+					self.rc.ForwardM1(addr,0)
+				else:
+					self.rc.ForwardM2(addr,0)
+			elif speed[i] != 0:
+				speed_cmd = int(32767 * speed[i]/100.0)
+				if not i % 2: 	
+					self.rc.DutyAccelM1(addr,accel,speed_cmd)
+				else:			
+					self.rc.DutyAccelM2(addr,accel,speed_cmd)
+	def temp2(self,speed):
+		for i in range(len(speed)):
+			addr = self.address[int(i/2)]
+			
+			if(speed[i] == 0 and self.drive_zero_flag[i] == 0):
+				self.drive_zero_flag[i] = 1
+				if not i % 2:
+					self.rc.ForwardM1(addr,0)
+				else:
+					self.rc.ForwardM2(addr,0)
+			elif speed[i] != 0:
+				self.drive_zero_flag[i] = 0
+				speed_cmd = abs(int(speed[i] * 127/100))
+				
+				if speed[i] > 0:
+					if not i % 2:
+						self.rc.ForwardM1(addr,speed_cmd)
+					else:
+						self.rc.ForwardM2(addr,speed_cmd)
+				else:
+					if not i % 2:
+						self.rc.BackwardM1(addr,speed_cmd)
+					else:
+						self.rc.BackwardM2(addr,speed_cmd)
 	@staticmethod
 	def tick2deg(tick,e_min,e_max):
 		'''
@@ -254,6 +317,15 @@ class MotorControllers(object):
 		f.write('\n' + 'Errors: ' + '[' + errors + ']' + ' at: ' + str(datetime.datetime.now()))
 		f.close()
 
+	def set_estop_line(self,val):
+		'''
+		'''
+		print "Setting pins to ", str(not val)
+		GPIO.output(self.estop_pin,not val)
 
-
+	def cleanup(self):
+		self.killMotors()
+		GPIO.output(self.estop_pin,0)
+		time.sleep(0.05)
+		GPIO.cleanup()
 

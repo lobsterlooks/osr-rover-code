@@ -102,9 +102,9 @@ class Robot():
 			v5 = int(v)                            # Fastest wheel
 			v6 = int((v*math.sqrt(b + c))/rmax_float)
 
-			if (r < 0):
+			if (r > 0):
 				velocity = [v1,v2,v3,v4,v5,v6]
-			elif (r > 0):
+			else:
 				velocity = [v6,v5,v4,v3,v2,v1]
 
 			return velocity
@@ -136,10 +136,10 @@ class Robot():
 
 		if radius > 0:
 
-			return [ang2,-ang1,-ang4,ang3]
+			return [ang3,-ang4,-ang1,ang2]
 		else:
 
-			return [-ang4,ang3,ang2,-ang1]
+			return [-ang1,ang2,ang3,-ang4]
 
 	def getCornerEnc(self):
 		'''

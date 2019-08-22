@@ -10,31 +10,26 @@ motorcontrollers = MotorControllers()
 
 def callback(cmds):
 	global mutex	
-	rospy.loginfo(cmds)
+	#rospy.loginfo(cmds)
 	while mutex:
 		time.sleep(0.001)
 		#print "cmds are being buffered"
 	mutex = True
-	# PUT THIS BACK IN
 	motorcontrollers.cornerToPosition(cmds.corner_motor)
-	for i in range(6):
-		# PUT THIS BACK IN
-		#motorcontrollers.sendMotorDuty(i,cmds.drive_motor[i])
-		motorcontrollers.sendSignedDutyAccel(i,cmds.drive_motor[i])
-		pass
+	motorcontrollers.temp2(cmds.drive_motor)
 	mutex = False
 
 def shutdown():
 	print "killing motors"
-	motorcontrollers.killMotors()
+	motorcontrollers.cleanup()
 
 
 if __name__ == "__main__":
-
+	time.sleep(10)
 	rospy.init_node("motor_controller")
 	rospy.loginfo("Starting the motor_controller node")
 	rospy.on_shutdown(shutdown)
-	sub = rospy.Subscriber("/robot_commands",Commands,callback)
+	sub = rospy.Subscriber("/robot_cmds",Commands,callback)
 	enc_pub = rospy.Publisher("/encoder", Encoder, queue_size =1)
 	status_pub = rospy.Publisher("/status", Status, queue_size =1)
 
@@ -59,7 +54,6 @@ if __name__ == "__main__":
 		enc.abs_enc = motorcontrollers.getCornerEnc()
 		#mc_data.abs_enc_angles = motorcontrollers.getCornerEncAngle()
 		if (counter >= 10):
-			
 			status.battery = motorcontrollers.getBattery()
 			status.temp = motorcontrollers.getTemp()
 			status.current = motorcontrollers.getCurrents()

@@ -1,20 +1,25 @@
 #!/usr/bin/env python
 import time
 import rospy
-from osr_msgs.msg import Status
+from osr_msgs.msg import Status,Led
 from screen import LedScreen
 
 screen = LedScreen()
 
 def callback(data):
-	#rospy.loginfo(data)
-	#send usb-> ttl serial commands
-	screen.build_msg(1,data.battery,data.error_status,data.temp,data.current)
+	screen.build_msg(	
+						int(rospy.get_param("remote_connected")),
+						data.battery,
+						data.error_status,
+						data.temp,
+						data.current,
+						int(rospy.get_param("face"))
+					)
+	
 	screen.check_for_afffirm()
 
 def shutdown():
-	screen.transistion_to_idle()
-	return 0
+	screen.transistion_screen_to_idle()
 
 if __name__ == "__main__":
 

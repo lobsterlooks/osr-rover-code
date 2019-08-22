@@ -55,6 +55,7 @@ find_package(catkin REQUIRED COMPONENTS
    Commands.msg
    Encoder.msg
    Status.msg
+   Led.msg
  )
 
 ## Generate services in the 'srv' folder
