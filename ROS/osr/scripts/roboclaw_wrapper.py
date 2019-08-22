@@ -20,9 +20,9 @@ class MotorControllers(object):
 	'''
 	def __init__(self):
 		rospy.loginfo( "Initializing motor controllers")
-		self.rc = Roboclaw( rospy.get_param('motor_controller_device', "/dev/serial0"),
-							rospy.get_param('baud_rate', 115200))
-		address_raw = rospy.get_param('motor_controller_addresses',"128,129,130,131,132")
+		self.rc = Roboclaw( rospy.get_param('motor_controller/device/', "/dev/serial0"),
+							rospy.get_param('motor_controller/baud', 115200))
+		address_raw = rospy.get_param('motor_controller/addresses',"128,129,130,131,132")
 		
 		self.estop_pin        = 23
 		self.accel            = [0]    * 10
@@ -77,8 +77,8 @@ class MotorControllers(object):
 				self.rc.ResetEncoders(address)
 
 
-		rospy.set_param('enc_min', str(self.enc_min)[1:-1])
-		rospy.set_param('enc_max', str(self.enc_max)[1:-1])
+		rospy.set_param('motor_controller/enc_min', str(self.enc_min)[1:-1])
+		rospy.set_param('motor_controller/enc_max', str(self.enc_max)[1:-1])
 		
 		for address in self.address:
 			self.rc.WriteNVM(address)
@@ -110,7 +110,7 @@ class MotorControllers(object):
 		for i in range(4):
 			mids[i] = (self.enc_max[i] + self.enc_min[i])/2
 		self.cornerToPosition(mids)
-		rospy.set_param("controller_init", 1)
+		rospy.set_param("motor_controller/init", 1)
 		time.sleep(2)
 		self.killMotors()
 		

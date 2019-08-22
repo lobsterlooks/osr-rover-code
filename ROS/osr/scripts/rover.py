@@ -30,7 +30,7 @@ def enc_callback(message):
 	encs = temp
 
 if __name__ == '__main__':
-	while not(rospy.get_param("controller_init")):
+	while not(rospy.get_param("motor_controller/init")):
 		time.sleep(0.1)
 
 	rospy.init_node('rover')

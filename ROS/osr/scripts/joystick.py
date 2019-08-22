@@ -37,10 +37,10 @@ def callback(data):
 	else:
 		counter = 0
 	if counter > 3:
-		rospy.set_param("remote_connected",0)
+		rospy.set_param("remote_control/connected",0)
 	else:
-		rospy.set_param("remote_connected",1)
-	rospy.set_param("face",mode)
+		rospy.set_param("remote_control/connected",1)
+	rospy.set_param("face/value",mode)
 	last = time.time()
 	led_pub.publish(led_msg)
 	

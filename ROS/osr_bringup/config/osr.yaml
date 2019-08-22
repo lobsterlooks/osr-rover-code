@@ -1,0 +1,27 @@
+motor_controller:
+  baud: 115200
+  device0: "/dev/serial0"
+  device1: "/dev/serial1"
+  addresses: "128,129,130,131,132"
+  enc_min: "0,0,0,0"
+  enc_max: "2000,2000,2000,2000"
+  qpps: "0,0,0,0"
+  battery:
+    low: 11
+    high: 17
+  init: 0
+
+mech_dist:
+  d1: 7.254
+  d2: 10.5
+  d3: 10.5
+  d4: 10.073
+
+face:
+  value: 0
+
+remote_control:
+  connected: 1
+
+config:
+  left-right-switch: 1

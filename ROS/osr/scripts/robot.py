@@ -15,20 +15,23 @@ class Robot():
 
 	'''
 	def __init__(self):
-		distances = rospy.get_param('mech_dist','7.254,10.5,10.5,10.073').split(",")
-		self.d1 = float(distances[0])
-		self.d2 = float(distances[1])
-		self.d3 = float(distances[2])
-		self.d4 = float(distances[3])
-
+		distances = rospy.get_param('controllermech_dist','7.254,10.5,10.5,10.073').split(",")
+		self.d1 = float(rospy.get_param('mech_dist/d1'))
+		self.d2 = float(rospy.get_param('mech_dist/d2'))
+		self.d3 = float(rospy.get_param('mech_dist/d3'))
+		self.d4 = float(rospy.get_param('mech_dist/d4'))
+		self.switch_sides = rospy.get_param('config/left-right-switch')
 		#to change when getting Mc thread lock to work
-		enc_min_raw = rospy.get_param('enc_min').split(',')
-		enc_max_raw = rospy.get_param('enc_max').split(',')
+		enc_min_raw = rospy.get_param('motor_controller/enc_min').split(',')
+		enc_max_raw = rospy.get_param('motor_controller/enc_max').split(',')
+
 		enc_min_int = [None]*4
 		enc_max_int = [None]*4
 		for i in range(4):
 			enc_min_int[i] = int(enc_min_raw[i])
 			enc_max_int[i] = int(enc_max_raw[i])
+			if (enc_min_int == 0 or enc_max_int == 2000):
+				raise Exception("Possible uncalibrated steering system on steering motor: ", i)
 
 		self.enc_min = enc_min_int
 		self.enc_max = enc_max_int
@@ -102,10 +105,16 @@ class Robot():
 			v5 = int(v)                            # Fastest wheel
 			v6 = int((v*math.sqrt(b + c))/rmax_float)
 
-			if (r > 0):
-				velocity = [v1,v2,v3,v4,v5,v6]
+			if (left-right-switch):
+				if (r > 0):
+					velocity = [v1,v2,v3,v4,v5,v6]
+				else:
+					velocity = [v6,v5,v4,v3,v2,v1]
 			else:
-				velocity = [v6,v5,v4,v3,v2,v1]
+				if (r < 0):
+					velocity = [v6,v5,v4,v3,v2,v1]
+				elif (r > 0):
+					velocity = [v1,v2,v3,v4,v5,v6]
 
 			return velocity
 
@@ -134,13 +143,18 @@ class Robot():
 			if   angles[i] < -45: angles[i] = -43
 			elif angles[i] >  45: angles[i] =  43
 
-		if radius > 0:
 
-			return [ang3,-ang4,-ang1,ang2]
+		if (left-right-switch):
+			if radius > 0:
+				return [ang3,-ang4,-ang1,ang2]
+			else:
+				return [-ang1,ang2,ang3,-ang4]
 		else:
-
-			return [-ang1,ang2,ang3,-ang4]
-
+			if radius > 0:			
+				return [ang3,-ang4,-ang1,ang2]
+			else:
+				return [-ang1,ang2,ang3,-ang4]
+	
 	def getCornerEnc(self):
 		'''
 		Returns a list of the tick value of each corner encoder

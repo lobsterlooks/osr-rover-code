@@ -8,12 +8,12 @@ screen = LedScreen()
 
 def callback(data):
 	screen.build_msg(	
-						int(rospy.get_param("remote_connected")),
+						int(rospy.get_param("remote_control/connected")),
 						data.battery,
 						data.error_status,
 						data.temp,
 						data.current,
-						int(rospy.get_param("face"))
+						int(rospy.get_param("face/value"))
 					)
 	
 	screen.check_for_afffirm()
